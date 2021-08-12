@@ -172,35 +172,42 @@ class IDL2JSONGenerator extends AbstractGenerator {
 	}
 	
 
-	
-	
 	def private void writePredicate(GeneralPredicate predicate) {
+		writePredicate(predicate, false)
+	}
+		
+	
+	def private void writePredicate(GeneralPredicate predicate, Boolean isNegated) {
 		var List<GeneralPredicate> andList = new ArrayList
 		var List<GeneralPredicate> orList = new ArrayList
 		andList.add(predicate)
 		orList.add(predicate)
-		writePredicate(predicate, andList, orList) 
+		var Boolean negated = isNegated;
+		if(predicate.firstClause.not !== null){
+			negated = true;
+		}
+		writePredicate(predicate, andList, orList, negated) 
 	}
 	
 	//TODO Metodo auxiliar, tengo que pasar la lista para iterar mejor
-	def private void writePredicate(GeneralPredicate predicate, List<GeneralPredicate> andList, List<GeneralPredicate> orList) {
-		var Boolean negated = false
+	def private void writePredicate(GeneralPredicate predicate, List<GeneralPredicate> andList, List<GeneralPredicate> orList, Boolean isNegated) {
+		var Boolean negated = isNegated
 		if (predicate.clauseContinuation !== null) {
 			if (predicate.clauseContinuation.logicalOp == "AND") {
 					var newPredicate = predicate.clauseContinuation.additionalElements;
 					andList.add(newPredicate)
-					writePredicate(newPredicate, andList, orList)
+					writePredicate(newPredicate, andList, orList, negated)
 				}else if (predicate.clauseContinuation.logicalOp == "OR") {
 					var newPredicate = predicate.clauseContinuation.additionalElements;
 					orList.add(newPredicate)
-					writePredicate(newPredicate, andList, orList)
+					writePredicate(newPredicate, andList, orList, negated)
 				}
 		}else{
 			if(predicate.firstClause.not!==null){
 				negated=true
 			}
 			if(andList.size()== 1 && orList.size()==1){
-				writeClause(predicate.firstClause)
+				writeClause(predicate.firstClause, negated)
 			}else if(andList.size() > 1){
 				jsonContent+='  "and":{\n'+ '"terms":[\n'
 				for (term : andList) {
@@ -213,7 +220,7 @@ class IDL2JSONGenerator extends AbstractGenerator {
 					jsonContent+='\n'
 				}
 				jsonContent+='],\n'
-				jsonContent+='"negated":'+negated+"\n"
+				jsonContent+='"negated":'+isNegated+"\n"
 				jsonContent+='}\n'
 			}else if(orList.size() > 1){
 				jsonContent+='"or":\n'+'{"terms":[\n'
@@ -228,20 +235,24 @@ class IDL2JSONGenerator extends AbstractGenerator {
 					
 				}
 				jsonContent+='],\n'
-				jsonContent+='"negated":'+negated+"\n "
+				jsonContent+='"negated":'+isNegated+"\n "
 				jsonContent+='}\n'
 			}
 			
 		}
 	}
 	
-	
 	def private void writeClause(GeneralClause clause) {
-		var Boolean negated = false;
+		 writeClause(clause, false)
+	}
+	
+	
+	def private void writeClause(GeneralClause clause, Boolean isNegated) {
+		var Boolean negated = isNegated;
 		if (clause.predicate !== null) {
 			if (clause.not !== null)
 				negated = true
-			writePredicate(clause.predicate)
+			writePredicate(clause.predicate, isNegated)
 		}
 		
 		// Solve firstElement, which can be a term, arithmetic dep, relational dep or predefined dep
@@ -264,7 +275,7 @@ class IDL2JSONGenerator extends AbstractGenerator {
 						jsonContent += '"value":'+param.booleanValue
 					} else if (param.doubleValue !== null) {
 						jsonContent+=',\n'+'"relation":"'+param.relationalOp +'",\n'
-						jsonContent+='"double":'+parseDouble(param.doubleValue)
+						jsonContent+='"value":'+parseDouble(param.doubleValue)
 					} else if (param.stringValues.size !== 0) {
 						for (string: param.stringValues) {
 						jsonContent += ',\n'+'"relation": "=="'+ ',\n'
